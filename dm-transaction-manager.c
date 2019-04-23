@@ -9,11 +9,15 @@
 #include "dm-space-map-metadata.h"
 #include "dm-persistent-data-internal.h"
 
-#include <linux/export.h>
-#include <linux/mutex.h>
-#include <linux/hash.h>
-#include <linux/slab.h>
-#include <linux/device-mapper.h>
+#include "compat/hash.h"
+#include "compat/list.h"
+#include "compat/memory.h"
+#include "compat/mutex.h"
+#include "compat/spinlock.h"
+
+#include <assert.h>
+#include <string.h>
+#include <stdio.h>
 
 #define DM_MSG_PREFIX "transaction manager"
 
@@ -193,7 +197,6 @@ struct dm_transaction_manager *dm_tm_create_non_blocking_clone(struct dm_transac
 
 	return tm;
 }
-EXPORT_SYMBOL_GPL(dm_tm_create_non_blocking_clone);
 
 void dm_tm_destroy(struct dm_transaction_manager *tm)
 {
@@ -202,7 +205,6 @@ void dm_tm_destroy(struct dm_transaction_manager *tm)
 
 	kfree(tm);
 }
-EXPORT_SYMBOL_GPL(dm_tm_destroy);
 
 int dm_tm_pre_commit(struct dm_transaction_manager *tm)
 {
@@ -217,7 +219,6 @@ int dm_tm_pre_commit(struct dm_transaction_manager *tm)
 
 	return dm_bm_flush(tm->bm);
 }
-EXPORT_SYMBOL_GPL(dm_tm_pre_commit);
 
 int dm_tm_commit(struct dm_transaction_manager *tm, struct dm_block *root)
 {
@@ -229,7 +230,6 @@ int dm_tm_commit(struct dm_transaction_manager *tm, struct dm_block *root)
 
 	return dm_bm_flush(tm->bm);
 }
-EXPORT_SYMBOL_GPL(dm_tm_commit);
 
 int dm_tm_new_block(struct dm_transaction_manager *tm,
 		    struct dm_block_validator *v,
@@ -323,7 +323,6 @@ int dm_tm_shadow_block(struct dm_transaction_manager *tm, dm_block_t orig,
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_tm_shadow_block);
 
 int dm_tm_read_lock(struct dm_transaction_manager *tm, dm_block_t b,
 		    struct dm_block_validator *v,
@@ -340,35 +339,31 @@ int dm_tm_read_lock(struct dm_transaction_manager *tm, dm_block_t b,
 
 	return dm_bm_read_lock(tm->bm, b, v, blk);
 }
-EXPORT_SYMBOL_GPL(dm_tm_read_lock);
 
 void dm_tm_unlock(struct dm_transaction_manager *tm, struct dm_block *b)
 {
 	dm_bm_unlock(b);
 }
-EXPORT_SYMBOL_GPL(dm_tm_unlock);
 
 void dm_tm_inc(struct dm_transaction_manager *tm, dm_block_t b)
 {
 	/*
 	 * The non-blocking clone doesn't support this.
 	 */
-	BUG_ON(tm->is_clone);
+	assert(!tm->is_clone);
 
 	dm_sm_inc_block(tm->sm, b);
 }
-EXPORT_SYMBOL_GPL(dm_tm_inc);
 
 void dm_tm_dec(struct dm_transaction_manager *tm, dm_block_t b)
 {
 	/*
 	 * The non-blocking clone doesn't support this.
 	 */
-	BUG_ON(tm->is_clone);
+	assert(!tm->is_clone);
 
 	dm_sm_dec_block(tm->sm, b);
 }
-EXPORT_SYMBOL_GPL(dm_tm_dec);
 
 int dm_tm_ref(struct dm_transaction_manager *tm, dm_block_t b,
 	      uint32_t *result)
@@ -388,7 +383,6 @@ void dm_tm_issue_prefetches(struct dm_transaction_manager *tm)
 {
 	prefetch_issue(&tm->prefetches, tm->bm);
 }
-EXPORT_SYMBOL_GPL(dm_tm_issue_prefetches);
 
 /*----------------------------------------------------------------*/
 
@@ -415,14 +409,14 @@ static int dm_tm_create_internal(struct dm_block_manager *bm,
 		r = dm_sm_metadata_create(*sm, *tm, dm_bm_nr_blocks(bm),
 					  sb_location);
 		if (r) {
-			DMERR("couldn't create metadata space map");
+			fprintf(stderr, "couldn't create metadata space map");
 			goto bad;
 		}
 
 	} else {
 		r = dm_sm_metadata_open(*sm, *tm, sm_root, sm_len);
 		if (r) {
-			DMERR("couldn't open metadata space map");
+			fprintf(stderr, "couldn't open metadata space map");
 			goto bad;
 		}
 	}
@@ -441,7 +435,6 @@ int dm_tm_create_with_sm(struct dm_block_manager *bm, dm_block_t sb_location,
 {
 	return dm_tm_create_internal(bm, sb_location, tm, sm, 1, NULL, 0);
 }
-EXPORT_SYMBOL_GPL(dm_tm_create_with_sm);
 
 int dm_tm_open_with_sm(struct dm_block_manager *bm, dm_block_t sb_location,
 		       void *sm_root, size_t root_len,
@@ -450,6 +443,5 @@ int dm_tm_open_with_sm(struct dm_block_manager *bm, dm_block_t sb_location,
 {
 	return dm_tm_create_internal(bm, sb_location, tm, sm, 0, sm_root, root_len);
 }
-EXPORT_SYMBOL_GPL(dm_tm_open_with_sm);
 
 /*----------------------------------------------------------------*/

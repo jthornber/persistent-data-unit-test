@@ -8,8 +8,11 @@
 #include "dm-space-map.h"
 #include "dm-transaction-manager.h"
 
-#include <linux/export.h>
-#include <linux/device-mapper.h>
+#include "compat/device-mapper.h"
+#include "compat/memory.h"
+
+#include <assert.h>
+#include <string.h>
 
 #define DM_MSG_PREFIX "btree"
 
@@ -38,7 +41,7 @@ static void array_insert(void *base, size_t elt_size, unsigned nr_elts,
 /*----------------------------------------------------------------*/
 
 /* makes the assumption that no two keys are the same. */
-static int bsearch(struct btree_node *n, uint64_t key, int want_hi)
+static int bsearch_(struct btree_node *n, uint64_t key, int want_hi)
 {
 	int lo = -1, hi = le32_to_cpu(n->header.nr_entries);
 
@@ -60,12 +63,12 @@ static int bsearch(struct btree_node *n, uint64_t key, int want_hi)
 
 int lower_bound(struct btree_node *n, uint64_t key)
 {
-	return bsearch(n, key, 0);
+	return bsearch_(n, key, 0);
 }
 
 static int upper_bound(struct btree_node *n, uint64_t key)
 {
-	return bsearch(n, key, 1);
+	return bsearch_(n, key, 1);
 }
 
 void inc_children(struct dm_transaction_manager *tm, struct btree_node *n,
@@ -150,7 +153,6 @@ int dm_btree_empty(struct dm_btree_info *info, dm_block_t *root)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(dm_btree_empty);
 
 /*----------------------------------------------------------------*/
 
@@ -337,7 +339,6 @@ out:
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_del);
 
 /*----------------------------------------------------------------*/
 
@@ -414,7 +415,6 @@ int dm_btree_lookup(struct dm_btree_info *info, dm_block_t root,
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_lookup);
 
 static int dm_btree_lookup_next_single(struct dm_btree_info *info, dm_block_t root,
 				       uint64_t key, uint64_t *rkey, void *value_le)
@@ -497,7 +497,6 @@ out:
 	return r;
 }
 
-EXPORT_SYMBOL_GPL(dm_btree_lookup_next);
 
 /*
  * Splits a node by creating a sibling node and shifting half the nodes
@@ -851,7 +850,6 @@ int dm_btree_insert(struct dm_btree_info *info, dm_block_t root,
 {
 	return insert(info, root, keys, value, new_root, NULL);
 }
-EXPORT_SYMBOL_GPL(dm_btree_insert);
 
 int dm_btree_insert_notify(struct dm_btree_info *info, dm_block_t root,
 			   uint64_t *keys, void *value, dm_block_t *new_root,
@@ -860,7 +858,6 @@ int dm_btree_insert_notify(struct dm_btree_info *info, dm_block_t root,
 {
 	return insert(info, root, keys, value, new_root, inserted);
 }
-EXPORT_SYMBOL_GPL(dm_btree_insert_notify);
 
 /*----------------------------------------------------------------*/
 
@@ -930,14 +927,12 @@ int dm_btree_find_highest_key(struct dm_btree_info *info, dm_block_t root,
 {
 	return dm_btree_find_key(info, root, true, result_keys);
 }
-EXPORT_SYMBOL_GPL(dm_btree_find_highest_key);
 
 int dm_btree_find_lowest_key(struct dm_btree_info *info, dm_block_t root,
 			     uint64_t *result_keys)
 {
 	return dm_btree_find_key(info, root, false, result_keys);
 }
-EXPORT_SYMBOL_GPL(dm_btree_find_lowest_key);
 
 /*----------------------------------------------------------------*/
 
@@ -984,10 +979,9 @@ int dm_btree_walk(struct dm_btree_info *info, dm_block_t root,
 		  int (*fn)(void *context, uint64_t *keys, void *leaf),
 		  void *context)
 {
-	BUG_ON(info->levels > 1);
+	assert(info->levels <= 1);
 	return walk_node(info, root, fn, context);
 }
-EXPORT_SYMBOL_GPL(dm_btree_walk);
 
 /*----------------------------------------------------------------*/
 
@@ -999,7 +993,7 @@ static void prefetch_values(struct dm_btree_cursor *c)
 	struct btree_node *bn = dm_block_data(n->b);
 	struct dm_block_manager *bm = dm_tm_get_bm(c->info->tm);
 
-	BUG_ON(c->info->value_type.size != sizeof(value_le));
+	assert(c->info->value_type.size == sizeof(value_le));
 
 	nr = le32_to_cpu(bn->header.nr_entries);
 	for (i = 0; i < nr; i++) {
@@ -1111,14 +1105,12 @@ int dm_btree_cursor_begin(struct dm_btree_info *info, dm_block_t root,
 
 	return find_leaf(c);
 }
-EXPORT_SYMBOL_GPL(dm_btree_cursor_begin);
 
 void dm_btree_cursor_end(struct dm_btree_cursor *c)
 {
 	while (c->depth)
 		pop_node(c);
 }
-EXPORT_SYMBOL_GPL(dm_btree_cursor_end);
 
 int dm_btree_cursor_next(struct dm_btree_cursor *c)
 {
@@ -1131,7 +1123,6 @@ int dm_btree_cursor_next(struct dm_btree_cursor *c)
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_cursor_next);
 
 int dm_btree_cursor_skip(struct dm_btree_cursor *c, uint32_t count)
 {
@@ -1142,7 +1133,6 @@ int dm_btree_cursor_skip(struct dm_btree_cursor *c, uint32_t count)
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_cursor_skip);
 
 int dm_btree_cursor_get_value(struct dm_btree_cursor *c, uint64_t *key, void *value_le)
 {
@@ -1160,4 +1150,3 @@ int dm_btree_cursor_get_value(struct dm_btree_cursor *c, uint64_t *key, void *va
 	} else
 		return -ENODATA;
 }
-EXPORT_SYMBOL_GPL(dm_btree_cursor_get_value);

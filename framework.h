@@ -1,0 +1,49 @@
+#ifndef FRAMEWORK_H
+#define FRAMEWORK_H
+
+#include "compat/list.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <setjmp.h>
+
+//-----------------------------------------------------------------
+
+// A test suite gathers a set of tests with a common fixture together.
+struct test_suite {
+	struct list_head list;
+
+	void *(*fixture_init)(void);
+	void (*fixture_exit)(void *);
+	struct list_head tests;
+};
+
+struct test_details {
+	struct test_suite *parent;
+	struct list_head list;
+
+	const char *path;
+	const char *desc;
+	void (*fn)(void *);
+};
+
+struct test_suite *test_suite_create(void *(*fixture_init)(void),
+				     void (*fixture_exit)(void *));
+void test_suite_destroy(struct test_suite *ts);
+
+bool register_test(struct test_suite *ts,
+		   const char *path, const char *desc, void (*fn)(void *));
+
+void test_fail(const char *fmt, ...)
+	__attribute__((noreturn, format (printf, 1, 2)));
+
+#define T_ASSERT(e) do {if (!(e)) {test_fail("assertion failed: '%s'", # e);} } while(0)
+#define T_ASSERT_EQUAL(x, y) T_ASSERT((x) == (y))
+#define T_ASSERT_NOT_EQUAL(x, y) T_ASSERT((x) != (y))
+
+extern jmp_buf test_k;
+#define TEST_FAILED 1
+
+//-----------------------------------------------------------------
+
+#endif

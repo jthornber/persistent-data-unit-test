@@ -7,10 +7,16 @@
 #ifndef _LINUX_DM_BLOCK_MANAGER_H
 #define _LINUX_DM_BLOCK_MANAGER_H
 
-#include <linux/types.h>
-#include <linux/blkdev.h>
+#include "types.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 /*----------------------------------------------------------------*/
+
+struct block_device {
+};
 
 /*
  * Block number.

@@ -7,7 +7,9 @@
 #ifndef _LINUX_DM_SPACE_MAP_H
 #define _LINUX_DM_SPACE_MAP_H
 
-#include "dm-block-manager.h"
+#include "compat/dm-block-manager.h"
+
+#include <errno.h>
 
 typedef void (*dm_sm_threshold_fn)(void *context);
 

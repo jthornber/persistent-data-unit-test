@@ -7,7 +7,7 @@
 #ifndef _LINUX_DM_SPACE_MAP_DISK_H
 #define _LINUX_DM_SPACE_MAP_DISK_H
 
-#include "dm-block-manager.h"
+#include "compat/dm-block-manager.h"
 
 struct dm_space_map;
 struct dm_transaction_manager;

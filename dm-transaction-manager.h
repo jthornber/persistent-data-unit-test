@@ -7,7 +7,7 @@
 #ifndef _LINUX_DM_TRANSACTION_MANAGER_H
 #define _LINUX_DM_TRANSACTION_MANAGER_H
 
-#include "dm-block-manager.h"
+#include "compat/dm-block-manager.h"
 
 struct dm_transaction_manager;
 struct dm_space_map;

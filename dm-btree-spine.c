@@ -7,7 +7,12 @@
 #include "dm-btree-internal.h"
 #include "dm-transaction-manager.h"
 
-#include <linux/device-mapper.h>
+#include "compat/bug.h"
+#include "compat/device-mapper.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
 
 #define DM_MSG_PREFIX "btree spine"
 
@@ -31,7 +36,7 @@ static void node_prepare_for_write(struct dm_block_validator *v,
 					     block_size - sizeof(__le32),
 					     BTREE_CSUM_XOR));
 
-	BUG_ON(node_check(v, b, 4096));
+	assert(!node_check(v, b, 4096));
 }
 
 static int node_check(struct dm_block_validator *v,
@@ -162,7 +167,7 @@ int ro_step(struct ro_spine *s, dm_block_t new_child)
 
 void ro_pop(struct ro_spine *s)
 {
-	BUG_ON(!s->count);
+	assert(s->count);
 	--s->count;
 	unlock_block(s->info, s->nodes[s->count]);
 }
@@ -171,7 +176,7 @@ struct btree_node *ro_node(struct ro_spine *s)
 {
 	struct dm_block *block;
 
-	BUG_ON(!s->count);
+	assert(s->count);
 	block = s->nodes[s->count - 1];
 
 	return dm_block_data(block);

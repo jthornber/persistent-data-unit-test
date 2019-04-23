@@ -9,10 +9,12 @@
 #include "dm-space-map.h"
 #include "dm-transaction-manager.h"
 
-#include <linux/list.h>
-#include <linux/slab.h>
-#include <linux/export.h>
-#include <linux/device-mapper.h>
+#include "compat/list.h"
+#include "compat/memory.h"
+#include "compat/device-mapper.h"
+
+#include <assert.h>
+#include <string.h>
 
 #define DM_MSG_PREFIX "space map disk"
 
@@ -175,7 +177,7 @@ static int sm_disk_new_block(struct dm_space_map *sm, dm_block_t *b)
 	smd->begin = *b + 1;
 	r = sm_ll_inc(&smd->ll, *b, &ev);
 	if (!r) {
-		BUG_ON(ev != SM_ALLOC);
+		assert(ev == SM_ALLOC);
 		smd->nr_allocated_this_transaction++;
 	}
 
@@ -283,7 +285,6 @@ bad:
 	kfree(smd);
 	return ERR_PTR(r);
 }
-EXPORT_SYMBOL_GPL(dm_sm_disk_create);
 
 struct dm_space_map *dm_sm_disk_open(struct dm_transaction_manager *tm,
 				     void *root_le, size_t len)
@@ -313,6 +314,5 @@ bad:
 	kfree(smd);
 	return ERR_PTR(r);
 }
-EXPORT_SYMBOL_GPL(dm_sm_disk_open);
 
 /*----------------------------------------------------------------*/

@@ -8,7 +8,12 @@
 #include "dm-btree-internal.h"
 #include "dm-transaction-manager.h"
 
-#include <linux/export.h>
+#include "compat/device-mapper.h"
+#include "compat/bug.h"
+#include "compat/cmp.h"
+
+#include <string.h>
+#include <errno.h>
 
 /*
  * Removing an entry from a btree
@@ -548,7 +553,6 @@ int dm_btree_remove(struct dm_btree_info *info, dm_block_t root,
 
 	return r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_remove);
 
 /*----------------------------------------------------------------*/
 
@@ -678,4 +682,3 @@ int dm_btree_remove_leaves(struct dm_btree_info *info, dm_block_t root,
 	*new_root = root;
 	return r == -ENODATA ? 0 : r;
 }
-EXPORT_SYMBOL_GPL(dm_btree_remove_leaves);

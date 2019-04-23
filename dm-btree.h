@@ -6,7 +6,7 @@
 #ifndef _LINUX_DM_BTREE_H
 #define _LINUX_DM_BTREE_H
 
-#include "dm-block-manager.h"
+#include "compat/dm-block-manager.h"
 
 struct dm_transaction_manager;
 

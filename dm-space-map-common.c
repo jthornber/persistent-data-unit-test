@@ -7,8 +7,13 @@
 #include "dm-space-map-common.h"
 #include "dm-transaction-manager.h"
 
-#include <linux/bitops.h>
-#include <linux/device-mapper.h>
+#include "compat/device-mapper.h"
+#include "compat/bitops.h"
+#include "compat/types.h"
+#include "compat/cmp.h"
+
+#include <errno.h>
+#include <string.h>
 
 #define DM_MSG_PREFIX "space map common"
 
