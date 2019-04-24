@@ -3,17 +3,14 @@ all: unit-test
 Q=@
 CC=gcc
 
-CFLAGS = -O2 
+CFLAGS = -Wall -O2 -g
 LDFLAGS =
 
 SOURCE=\
 	btree_tests.c \
-	\
 	compat/dm-block-manager.c \
-	\
 	framework.c \
 	main.c \
-	\
 	dm-transaction-manager.c \
 	dm-space-map-common.c \
 	dm-space-map-disk.c \
@@ -32,7 +29,7 @@ INCLUDES=
 
 %.o: %.c
 	@echo "    [CC] $<"
-	$(Q) $(CC) -c $(INCLUDES) -Wall $< -o $@
+	$(Q) $(CC) -c $(INCLUDES) $(CFLAGS) $< -o $@
 
 %.d: %.c
 	@echo "    [DEP] $<"
@@ -48,7 +45,7 @@ INCLUDES=
 
 unit-test: $(OBJECTS)
 	@echo "    [LD] $@"
-	$(Q) $(CC) -o $@ $+
+	$(Q) $(CC) -o $@ $(CFLAGS) $+
 
 .PHONEY: clean
 

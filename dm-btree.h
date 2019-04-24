@@ -212,4 +212,11 @@ int dm_btree_cursor_next(struct dm_btree_cursor *c);
 int dm_btree_cursor_skip(struct dm_btree_cursor *c, uint32_t count);
 int dm_btree_cursor_get_value(struct dm_btree_cursor *c, uint64_t *key, void *value_le);
 
+/*----------------------------------------------------------------*/
+
+// For testing
+uint32_t calc_max_entries(size_t value_size, size_t block_size);
+
+/*----------------------------------------------------------------*/
+
 #endif	/* _LINUX_DM_BTREE_H */

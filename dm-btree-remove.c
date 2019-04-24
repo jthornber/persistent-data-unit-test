@@ -7,6 +7,7 @@
 #include "dm-btree.h"
 #include "dm-btree-internal.h"
 #include "dm-transaction-manager.h"
+#include "btree-remove-internal.h"
 
 #include "compat/device-mapper.h"
 #include "compat/bug.h"
@@ -114,7 +115,7 @@ static void node_copy(struct btree_node *left, struct btree_node *right, int shi
 /*
  * Delete a specific entry from a leaf node.
  */
-static void delete_at(struct btree_node *n, unsigned index)
+void delete_at(struct btree_node *n, unsigned index)
 {
 	unsigned nr_entries = le32_to_cpu(n->header.nr_entries);
 	unsigned nr_to_copy = nr_entries - (index + 1);
