@@ -7,6 +7,8 @@ CFLAGS = -O2
 LDFLAGS =
 
 SOURCE=\
+	btree_tests.c \
+	\
 	compat/dm-block-manager.c \
 	\
 	framework.c \

@@ -46,7 +46,7 @@
  * [E] Both siblings, total_entries(left, node, right) > DEL_THRESHOLD
  *     ==> rebalance(left, node, right)
  *
- * After these operations it's possible that the our original node no
+ * After these operations it's possible that the original node no
  * longer contains the desired sub tree.  For this reason this rebalancing
  * is performed on the children of the current node.  This also avoids
  * having a special case for the root.
@@ -84,6 +84,7 @@ static void node_shift(struct btree_node *n, int shift)
 	}
 }
 
+// FIXME: I expected this to call node_shift
 static void node_copy(struct btree_node *left, struct btree_node *right, int shift)
 {
 	uint32_t nr_left = le32_to_cpu(left->header.nr_entries);
@@ -175,6 +176,7 @@ static void exit_child(struct dm_btree_info *info, struct child *c)
 	dm_tm_unlock(info->tm, c->block);
 }
 
+// FIXME: move this up with node_{shift,copy}
 static void shift(struct btree_node *left, struct btree_node *right, int count)
 {
 	uint32_t nr_left = le32_to_cpu(left->header.nr_entries);
@@ -305,12 +307,16 @@ static void redistribute3(struct dm_btree_info *info, struct btree_node *parent,
 	uint32_t max_entries = le32_to_cpu(left->header.max_entries);
 	unsigned total = nr_left + nr_center + nr_right;
 	unsigned target_right = total / 3;
+
+	// FIXME: this looks dodgy
 	unsigned remainder = (target_right * 3) != total;
 	unsigned target_left = target_right + remainder;
 
 	BUG_ON(target_left > max_entries);
 	BUG_ON(target_right > max_entries);
 
+	// FIXME: why can't the central node be full s. th. entries
+	// are moving towards both left and right?
 	if (nr_left < nr_right) {
 		s = nr_left - target_left;
 
@@ -354,6 +360,7 @@ static void __rebalance3(struct dm_btree_info *info, struct btree_node *parent,
 	uint32_t nr_center = le32_to_cpu(center->header.nr_entries);
 	uint32_t nr_right = le32_to_cpu(right->header.nr_entries);
 
+	// This will make the 2 children 2/3rds full which sounds reasonable
 	unsigned threshold = merge_threshold(left) * 4 + 1;
 
 	BUG_ON(left->header.max_entries != center->header.max_entries);

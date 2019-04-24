@@ -409,6 +409,7 @@ int dm_btree_lookup(struct dm_btree_info *info, dm_block_t root,
 			return r;
 		}
 
+		// FIXME: this shouldn't be set on the last iteration (harmless but ugly)
 		root = le64_to_cpu(internal_value_le);
 	}
 	exit_ro_spine(&spine);
@@ -446,6 +447,7 @@ static int dm_btree_lookup_next_single(struct dm_btree_info *info, dm_block_t ro
 			goto out;
 		}
 
+		// FIXME: remove recursion
 		r = dm_btree_lookup_next_single(info, value64(n, i), key, rkey, value_le);
 		if (r == -ENODATA && i < (nr_entries - 1)) {
 			i++;
@@ -467,6 +469,7 @@ out:
 	return r;
 }
 
+// FIXME: candidate for unit testing
 int dm_btree_lookup_next(struct dm_btree_info *info, dm_block_t root,
 			 uint64_t *keys, uint64_t *rkey, void *value_le)
 {
@@ -558,6 +561,7 @@ static int btree_split_sibling(struct shadow_spine *s, unsigned parent_index,
 	rn->header.value_size = ln->header.value_size;
 	memcpy(rn->keys, ln->keys + nr_left, nr_right * sizeof(rn->keys[0]));
 
+	// FIXME: why can't we use ln->header.value_size?
 	size = le32_to_cpu(ln->header.flags) & INTERNAL_NODE ?
 		sizeof(uint64_t) : s->info->value_type.size;
 	memcpy(value_ptr(rn, 0), value_ptr(ln, nr_left),
@@ -657,6 +661,7 @@ static int btree_split_beneath(struct shadow_spine *s, uint64_t key)
 	memcpy(ln->keys, pn->keys, nr_left * sizeof(pn->keys[0]));
 	memcpy(rn->keys, pn->keys + nr_left, nr_right * sizeof(pn->keys[0]));
 
+	// FIXME: pn->header.value_size?
 	size = le32_to_cpu(pn->header.flags) & INTERNAL_NODE ?
 		sizeof(__le64) : s->info->value_type.size;
 	memcpy(value_ptr(ln, 0), value_ptr(pn, 0), nr_left * size);
@@ -714,6 +719,7 @@ static int btree_insert_raw(struct shadow_spine *s, dm_block_t root,
 				    &location, sizeof(__le64));
 		}
 
+		// FIXME: how can this change?
 		node = dm_block_data(shadow_current(s));
 
 		if (node->header.nr_entries == node->header.max_entries) {
@@ -819,6 +825,8 @@ static int insert(struct dm_btree_info *info, dm_block_t root,
 		if (inserted)
 			*inserted = 0;
 
+		// FIXME: something fishy here, we only dec if they're not equal, but we leave
+		// inc to the layer above.  Write unit test.
 		if (info->value_type.dec &&
 		    (!info->value_type.equal ||
 		     !info->value_type.equal(
@@ -861,6 +869,7 @@ int dm_btree_insert_notify(struct dm_btree_info *info, dm_block_t root,
 
 /*----------------------------------------------------------------*/
 
+// FIXME: rename?  It seems to find the highest or lowest key.
 static int find_key(struct ro_spine *s, dm_block_t block, bool find_highest,
 		    uint64_t *result_key, dm_block_t *next_block)
 {
@@ -879,6 +888,7 @@ static int find_key(struct ro_spine *s, dm_block_t block, bool find_highest,
 		else
 			i--;
 
+		// FIXME: no point filling in result_key until we're at a leaf
 		if (find_highest)
 			*result_key = le64_to_cpu(ro_node(s)->keys[i]);
 		else
@@ -957,6 +967,7 @@ static int walk_node(struct dm_btree_info *info, dm_block_t block,
 	n = dm_block_data(node);
 
 	nr = le32_to_cpu(n->header.nr_entries);
+	// FIXME: lift the INTERNAL_NODE check outside the loop
 	for (i = 0; i < nr; i++) {
 		if (le32_to_cpu(n->header.flags) & INTERNAL_NODE) {
 			r = walk_node(info, value64(n, i), fn, context);
@@ -993,6 +1004,7 @@ static void prefetch_values(struct dm_btree_cursor *c)
 	struct btree_node *bn = dm_block_data(n->b);
 	struct dm_block_manager *bm = dm_tm_get_bm(c->info->tm);
 
+	// FIXME: shouldn't this be checking bn->header.value_size?
 	assert(c->info->value_type.size == sizeof(value_le));
 
 	nr = le32_to_cpu(bn->header.nr_entries);
@@ -1052,6 +1064,7 @@ static int inc_or_backtrack(struct dm_btree_cursor *c)
 		bn = dm_block_data(n->b);
 
 		n->index++;
+		// FIXME: we could put this limit in n
 		if (n->index < le32_to_cpu(bn->header.nr_entries))
 			break;
 

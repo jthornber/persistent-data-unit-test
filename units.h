@@ -20,12 +20,12 @@
 //-----------------------------------------------------------------
 
 // Declare the function that adds tests suites here ...
-void block_manager_tests(struct list_head *suites);
+void btree_tests(struct list_head *suites);
 
 // ... and call it in here.
 static inline void register_all_tests(struct list_head *suites)
 {
-        block_manager_tests(suites);
+        btree_tests(suites);
 }
 
 //-----------------------------------------------------------------
