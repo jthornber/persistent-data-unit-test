@@ -178,7 +178,7 @@ static void exit_child(struct dm_btree_info *info, struct child *c)
 }
 
 // FIXME: move this up with node_{shift,copy}
-static void shift(struct btree_node *left, struct btree_node *right, int count)
+void shift(struct btree_node *left, struct btree_node *right, int count)
 {
 	uint32_t nr_left = le32_to_cpu(left->header.nr_entries);
 	uint32_t nr_right = le32_to_cpu(right->header.nr_entries);

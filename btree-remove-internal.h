@@ -6,6 +6,7 @@
 /*----------------------------------------------------------------*/
 
 void delete_at(struct btree_node *n, unsigned index);
+void shift(struct btree_node *left, struct btree_node *right, int count);
 
 /*----------------------------------------------------------------*/
 
