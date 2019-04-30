@@ -13,6 +13,7 @@ SOURCE=\
 	main.c \
 	dm-transaction-manager.c \
 	dm-space-map-common.c \
+	dm-space-map-core.c \
 	dm-space-map-disk.c \
 	dm-space-map-metadata.c \
 	dm-btree-remove.c \
