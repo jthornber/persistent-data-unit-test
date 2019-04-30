@@ -11,11 +11,13 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 /*----------------------------------------------------------------*/
 
 struct block_device {
+	FILE *file;
 };
 
 /*

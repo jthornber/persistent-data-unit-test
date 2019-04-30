@@ -230,6 +230,7 @@ static void __rebalance2(struct dm_btree_info *info, struct btree_node *parent,
 		/*
 		 * Rebalance.
 		 */
+		// FIXME: should we skip this if the shift is small?
 		unsigned target_left = (nr_left + nr_right) / 2;
 		shift(left, right, nr_left - target_left);
 		*key_ptr(parent, r->index) = right->keys[0];

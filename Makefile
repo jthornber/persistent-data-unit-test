@@ -23,7 +23,8 @@ OBJECTS=$(subst .c,.o,$(SOURCE))
 DEPENDS=$(subst .c,.d,$(SOURCE))
 	
 
-INCLUDES=
+INCLUDES=\
+	-I.
 		
 .SUFFIXES: .c .d .o
 

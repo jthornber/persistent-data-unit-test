@@ -219,6 +219,25 @@ static void test_shift(void *context)
 
 //--------------------------------------------------------
 
+static void test_rebalance2_with_merge(void *context)
+{
+#if 0
+	struct shadow_spine spine;
+	struct dm_btree_info info;
+	// We need a transaction manager and an in core space map
+
+	int rebalance2(struct shadow_spine *s, struct dm_btree_info *info,
+			      struct dm_btree_value_type *vt, unsigned left_index)
+#endif
+}
+
+static void test_rebalance2_shift(void *context)
+{
+
+}
+
+//--------------------------------------------------------
+
 #define T(path, desc, fn) register_test(ts, "/btree/remove/" path, desc, fn)
 
 static struct test_suite *remove_tests(void)
@@ -231,6 +250,7 @@ static struct test_suite *remove_tests(void)
 
 	T("delete_at", "delete_at()", test_delete_at);
 	T("shift", "shift()", test_shift);
+	//T("rebalance2", "rebalance2()", test_rebalance2);
 
 	return ts;
 }
