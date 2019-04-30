@@ -125,6 +125,8 @@ void dm_tm_issue_prefetches(struct dm_transaction_manager *tm);
  * The superblock location is passed so the metadata space map knows it
  * shouldn't be used.
  */
+struct dm_transaction_manager *dm_tm_create(struct dm_block_manager *bm,
+					    struct dm_space_map *sm);
 int dm_tm_create_with_sm(struct dm_block_manager *bm, dm_block_t sb_location,
 			 struct dm_transaction_manager **tm,
 			 struct dm_space_map **sm);

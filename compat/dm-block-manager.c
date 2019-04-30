@@ -70,6 +70,7 @@ void dm_block_manager_destroy(struct dm_block_manager *bm)
 {
 	dm_bm_flush(bm);
 	T_ASSERT(list_empty(&bm->held_blocks));
+	free(bm);
 }
 
 unsigned dm_bm_block_size(struct dm_block_manager *bm)

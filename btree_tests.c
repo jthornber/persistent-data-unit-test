@@ -5,6 +5,8 @@
 
 #include "dm-btree.h"
 #include "btree-remove-internal.h"
+#include "dm-space-map-core.h"
+#include "dm-transaction-manager.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +31,62 @@ static unsigned rnd(unsigned end)
 	return rand() % end;
 }
 
+//--------------------------------------------------------
+
+struct fixture {
+	dm_block_t nr_blocks;
+	struct block_device bdev;
+	struct dm_block_manager *bm;
+	struct dm_space_map *sm;
+	struct dm_transaction_manager *tm;
+};
+
+static FILE *create_block_file_(unsigned block_size, dm_block_t nr_blocks)
+{
+	unsigned i;
+	FILE *f = tmpfile();
+	T_ASSERT(f);
+
+	uint8_t data[block_size];
+	memset(data, 0, sizeof(data));
+	for (i = 0; i < nr_blocks; i++)
+		fwrite(data, block_size, 1, f);
+	rewind(f);
+
+	return f;
+}
+
+static void *create_tm_()
+{
+	struct fixture *fix = malloc(sizeof(*fix));
+	T_ASSERT(fix);
+
+	fix->nr_blocks = 128;
+	fix->bdev.file = create_block_file_(BLOCK_SIZE, fix->nr_blocks);
+
+	fix->bm = dm_block_manager_create(&fix->bdev, BLOCK_SIZE, 10);
+	T_ASSERT(fix->bm);
+
+	fix->sm = dm_sm_core_create(fix->nr_blocks);
+	T_ASSERT(fix->sm);
+
+	fix->tm = dm_tm_create(fix->bm, fix->sm);
+	T_ASSERT(fix->tm);
+
+	return fix;
+}
+
+static void destroy_tm_(void *context)
+{
+	struct fixture *fix = context;
+	dm_tm_destroy(fix->tm);
+	dm_sm_destroy(fix->sm);
+	dm_block_manager_destroy(fix->bm);
+	fclose(fix->bdev.file);
+	free(fix);
+}
+
+//--------------------------------------------------------
 static void node_is_well_formed(struct btree_node *n)
 {
 	unsigned i;
@@ -90,6 +148,13 @@ static bool create_leaves(uint32_t value_size, unsigned count,
 static void free_node(struct btree_node *n)
 {
 	free(n);
+}
+
+static void free_nodes(unsigned nr_nodes, struct btree_node **nodes)
+{
+	unsigned i;
+	for (i = 0; i < nr_nodes; i++)
+		free_node(nodes[i]);
 }
 
 //--------------------------------------------------------
@@ -201,6 +266,8 @@ static void do_shift(unsigned nr_left, unsigned nr_right, int s)
 
 	node_is_well_formed(nodes[0]);
 	node_is_well_formed(nodes[1]);
+
+	free_nodes(2, nodes);
 }
 
 static void test_shift(void *context)
@@ -242,7 +309,7 @@ static void test_rebalance2_shift(void *context)
 
 static struct test_suite *remove_tests(void)
 {
-	struct test_suite *ts = test_suite_create(NULL, NULL);
+	struct test_suite *ts = test_suite_create(create_tm_, destroy_tm_);
 	if (!ts) {
 		fprintf(stderr, "out of memory\n");
 		exit(1);

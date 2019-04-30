@@ -161,8 +161,8 @@ static void wipe_shadow_table(struct dm_transaction_manager *tm)
 
 /*----------------------------------------------------------------*/
 
-static struct dm_transaction_manager *dm_tm_create(struct dm_block_manager *bm,
-						   struct dm_space_map *sm)
+struct dm_transaction_manager *dm_tm_create(struct dm_block_manager *bm,
+					    struct dm_space_map *sm)
 {
 	int i;
 	struct dm_transaction_manager *tm;
