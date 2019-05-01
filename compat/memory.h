@@ -2,6 +2,7 @@
 #define compat_memory_h_INCLUDED
 
 #include <stdlib.h>
+#include <string.h>
 
 #define MAX_ERRNO       4095
 #define IS_ERR_VALUE(x) ((unsigned long)(void *)(x) >= (unsigned long)-MAX_ERRNO)
@@ -29,6 +30,13 @@ enum {
 
 static inline void *kmalloc(size_t s, int _) {return malloc(s);}
 static inline void kfree(void *ptr) {free(ptr);}
+
+static inline void *zalloc(size_t len) {
+	void *ptr = malloc(len);
+	if (ptr)
+		memset(ptr, 0, len);
+	return ptr;
+}
 
 #endif
 

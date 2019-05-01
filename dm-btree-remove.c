@@ -237,8 +237,8 @@ static void __rebalance2(struct dm_btree_info *info, struct btree_node *parent,
 	}
 }
 
-static int rebalance2(struct shadow_spine *s, struct dm_btree_info *info,
-		      struct dm_btree_value_type *vt, unsigned left_index)
+int rebalance2(struct shadow_spine *s, struct dm_btree_info *info,
+	      struct dm_btree_value_type *vt, unsigned left_index)
 {
 	int r;
 	struct btree_node *parent;

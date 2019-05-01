@@ -1,5 +1,6 @@
 #include "dm-space-map-core.h"
 
+#include "compat/memory.h"
 #include "framework.h"
 
 /*----------------------------------------------------------------*/
@@ -123,6 +124,8 @@ static int new_block_(struct dm_space_map *sm, dm_block_t *b)
 			return 0;
 		}
 
+	// If this triggers then nr_free accounting is wrong
+	fprintf(stderr, "nr_free = %u\n", (unsigned) smc->nr_free);
 	T_ASSERT(!smc->nr_free);
 	return -ENOSPC;
 }
@@ -151,8 +154,8 @@ struct dm_space_map *dm_sm_core_create(dm_block_t nr_blocks)
 	struct sm_core *smc = malloc(sizeof(*smc));
 	T_ASSERT(smc);
 	smc->nr_blocks = nr_blocks;
-	smc->nr_free = 0;
-	smc->ref_counts = malloc(sizeof(*smc->ref_counts) * nr_blocks);
+	smc->nr_free = nr_blocks;
+	smc->ref_counts = zalloc(sizeof(*smc->ref_counts) * nr_blocks);
 	T_ASSERT(smc->ref_counts);
 
 	smc->sm.destroy = destroy_;

@@ -142,7 +142,7 @@ static void read_(struct dm_block *blk)
 	T_ASSERT(r >= 0);
 
 	r = fread(blk->data, bm->block_size, 1, bm->bdev->file);
-	T_ASSERT(r == bm->block_size);
+	T_ASSERT(r == 1);
 }
 
 static void write_(struct dm_block *blk)
@@ -154,17 +154,19 @@ static void write_(struct dm_block *blk)
 	T_ASSERT(r >= 0);
 
 	r = fwrite(blk->data, bm->block_size, 1, bm->bdev->file);
-	T_ASSERT(r == bm->block_size);
+	T_ASSERT(r == 1);
 }
 
 static void prepare_(struct dm_block *blk)
 {
-	blk->v->prepare_for_write(blk->v, blk, blk->bm->block_size);
+	if (blk->v)
+		blk->v->prepare_for_write(blk->v, blk, blk->bm->block_size);
 }
 
 static void validate_(struct dm_block *blk)
 {
-	blk->v->check(blk->v, blk, blk->bm->block_size);
+	if (blk->v)
+		blk->v->check(blk->v, blk, blk->bm->block_size);
 }
 
 static struct dm_block *new_block_(struct dm_block_manager *bm, dm_block_t b,
@@ -174,6 +176,8 @@ static struct dm_block *new_block_(struct dm_block_manager *bm, dm_block_t b,
 	T_ASSERT(blk);
 	read_(blk);
 	validate_(blk);
+	list_add(&blk->list, &bm->held_blocks);
+
 	return blk;
 }
 
@@ -230,8 +234,11 @@ int dm_bm_write_lock_zero(struct dm_block_manager *bm, dm_block_t b,
 		T_ASSERT(false);
 
 	blk = alloc_block_(bm, b, v);
-	memset(dm_block_data(*result), 0, bm->block_size);
+	T_ASSERT(blk);
+	memset(blk->data, 0, bm->block_size);
+	list_add(&blk->list, &bm->held_blocks);
 	blk->lock_count = -1;
+	*result = blk;
 	return 0;
 }
 

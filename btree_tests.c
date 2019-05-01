@@ -17,15 +17,6 @@
 
 #define BLOCK_SIZE 4096
 
-static void *zalloc(size_t s)
-{
-	void *ptr = malloc(s);
-	if (ptr)
-		memset(ptr, 0, s);
-
-	return ptr;
-}
-
 static unsigned rnd(unsigned end)
 {
 	return rand() % end;
@@ -39,6 +30,9 @@ struct fixture {
 	struct dm_block_manager *bm;
 	struct dm_space_map *sm;
 	struct dm_transaction_manager *tm;
+
+	struct dm_btree_info info;
+	struct dm_block_validator *validator;
 };
 
 static FILE *create_block_file_(unsigned block_size, dm_block_t nr_blocks)
@@ -61,7 +55,7 @@ static void *create_tm_()
 	struct fixture *fix = malloc(sizeof(*fix));
 	T_ASSERT(fix);
 
-	fix->nr_blocks = 128;
+	fix->nr_blocks = 10240;
 	fix->bdev.file = create_block_file_(BLOCK_SIZE, fix->nr_blocks);
 
 	fix->bm = dm_block_manager_create(&fix->bdev, BLOCK_SIZE, 10);
@@ -72,6 +66,14 @@ static void *create_tm_()
 
 	fix->tm = dm_tm_create(fix->bm, fix->sm);
 	T_ASSERT(fix->tm);
+
+	fix->info.tm = fix->tm;
+	fix->info.levels = 1;
+	fix->info.value_type.context = NULL;
+	fix->info.value_type.size = sizeof(uint64_t);
+	fix->info.value_type.inc = NULL;
+	fix->info.value_type.dec = NULL;
+	fix->info.value_type.equal = NULL;
 
 	return fix;
 }
@@ -87,6 +89,7 @@ static void destroy_tm_(void *context)
 }
 
 //--------------------------------------------------------
+
 static void node_is_well_formed(struct btree_node *n)
 {
 	unsigned i;
@@ -104,21 +107,49 @@ static void node_is_well_formed(struct btree_node *n)
 	}
 }
 
-static struct btree_node *create_leaf(uint32_t value_size, unsigned nr_entries,
-                                      unsigned key_start)
+typedef int (*blk_fn)(void *, struct dm_block *);
+
+static struct dm_block_validator *null_validator_()
+{
+	return NULL;
+}
+
+static dm_block_t with_new_block(struct dm_transaction_manager *tm,
+                                 blk_fn fn, void *context)
+{
+	int r;
+	dm_block_t b;
+	struct dm_block *blk;
+
+	T_ASSERT(!dm_tm_new_block(tm, null_validator_(), &blk));
+	r = fn(context, blk);
+	T_ASSERT(!r);
+	b = dm_block_location(blk);
+	dm_tm_unlock(tm, blk);
+
+	return b;
+}
+
+struct ci_params {
+	unsigned nr_entries;
+	unsigned key_start;
+};
+
+static int create_internal__(void *context, struct dm_block *blk)
 {
 	unsigned i, k;
-	struct btree_node *n = malloc(BLOCK_SIZE);
+	struct ci_params *params = context;
+	struct btree_node *n = dm_block_data(blk);
 	struct node_header *hdr = &n->header;
 
-	hdr->flags = LEAF_NODE;
-	hdr->nr_entries = nr_entries;
-	hdr->max_entries = calc_max_entries(value_size, BLOCK_SIZE);
-	hdr->value_size = value_size;
+	hdr->flags = INTERNAL_NODE;
+	hdr->nr_entries = params->nr_entries;
+	hdr->max_entries = calc_max_entries(sizeof(__le64), BLOCK_SIZE);
+	hdr->value_size = sizeof(__le64);
 
-	T_ASSERT(nr_entries <= hdr->max_entries);
-	k = key_start;
-	for (i = 0; i < nr_entries; i++) {
+	T_ASSERT(params->nr_entries <= hdr->max_entries);
+	k = params->key_start;
+	for (i = 0; i < params->nr_entries; i++) {
 		k += rnd(10);
 		n->keys[i] = k;
 
@@ -126,42 +157,89 @@ static struct btree_node *create_leaf(uint32_t value_size, unsigned nr_entries,
 		k++;
 	}
 
-	return n;
+	return 0;
 }
 
-static bool create_leaves(uint32_t value_size, unsigned count,
-                          unsigned *nr_entries, struct btree_node **result)
+static dm_block_t create_internal(struct dm_transaction_manager *tm,
+                                  unsigned nr_entries, unsigned key_start)
+{
+	struct ci_params params = {nr_entries, key_start};
+	return with_new_block(tm, create_internal__, &params);
+}
+
+struct cl_params {
+	uint32_t value_size;
+	unsigned nr_entries;
+	unsigned key_start;
+};
+
+static int create_leaf__(void *context, struct dm_block *blk)
+{
+	unsigned i, k;
+	struct cl_params *params = context;
+	struct btree_node *n = dm_block_data(blk);
+	struct node_header *hdr = &n->header;
+
+	hdr->flags = LEAF_NODE;
+	hdr->nr_entries = params->nr_entries;
+	hdr->max_entries = calc_max_entries(params->value_size, BLOCK_SIZE);
+	hdr->value_size = params->value_size;
+
+	T_ASSERT(params->nr_entries <= hdr->max_entries);
+	k = params->key_start;
+	for (i = 0; i < params->nr_entries; i++) {
+		k += rnd(10);
+		n->keys[i] = k;
+
+		memset(value_ptr(n, i), k, n->header.value_size);
+		k++;
+	}
+
+	return 0;
+}
+
+static dm_block_t create_leaf(struct dm_transaction_manager *tm,
+                              uint32_t value_size, unsigned nr_entries,
+                              unsigned key_start)
+{
+	struct cl_params params = {value_size, nr_entries, key_start};
+	return with_new_block(tm, create_leaf__, &params);
+}
+
+static bool create_leaves(struct dm_transaction_manager *tm,
+                          uint32_t value_size, unsigned count,
+                          unsigned *nr_entries, dm_block_t *result)
 {
 	unsigned i, key_start = 0;
 
 	for (i = 0; i < count; i++) {
-		result[i] = create_leaf(value_size, nr_entries[i], key_start);
-		if (!result[i])
-			return false;
-		if (nr_entries[i])
-			key_start = result[i]->keys[nr_entries[i] - 1] + 1;
+		result[i] = create_leaf(tm, value_size, nr_entries[i], key_start);
+		if (nr_entries[i]) {
+			struct dm_block *blk;
+			struct btree_node *n;
+
+			T_ASSERT(!dm_tm_read_lock(tm, result[i], null_validator_(), &blk));
+			n = dm_block_data(blk);
+			key_start = n->keys[nr_entries[i] - 1] + 1;
+			dm_tm_unlock(tm, blk);
+		}
 	}
 
 	return true;
 }
 
-static void free_node(struct btree_node *n)
-{
-	free(n);
-}
-
-static void free_nodes(unsigned nr_nodes, struct btree_node **nodes)
-{
-	unsigned i;
-	for (i = 0; i < nr_nodes; i++)
-		free_node(nodes[i]);
-}
-
 //--------------------------------------------------------
 
-static void do_delete_at(unsigned nr_entries, unsigned entry)
+static void do_delete_at(struct dm_transaction_manager *tm,
+                         unsigned nr_entries, unsigned entry)
 {
-	struct btree_node *n = create_leaf(sizeof(uint64_t), nr_entries, 0);
+	dm_block_t b = create_leaf(tm, sizeof(uint64_t), nr_entries, 0);
+	struct btree_node *n;
+	struct dm_block *blk;
+
+	T_ASSERT(!dm_tm_read_lock(tm, b, null_validator_(), &blk));
+
+	n = dm_block_data(blk);
 	uint64_t k = n->keys[entry];
 	unsigned i, j;
 
@@ -176,11 +254,12 @@ static void do_delete_at(unsigned nr_entries, unsigned entry)
 	T_ASSERT(n->header.nr_entries == nr_entries - 1);
 	node_is_well_formed(n);
 
-	free_node(n);
+	dm_tm_unlock(tm, blk);
 }
 
 static void test_delete_at(void *context)
 {
+	struct fixture *fix = context;
 	unsigned i;
 	unsigned nr_entries;
 	unsigned max_entries = calc_max_entries(sizeof(uint64_t), BLOCK_SIZE);
@@ -188,14 +267,14 @@ static void test_delete_at(void *context)
 	// Try across a variety of populated nodes
 	for (nr_entries = 1; nr_entries < max_entries; nr_entries++) {
 		// delete the first entry
-		do_delete_at(nr_entries, 0);
+		do_delete_at(fix->tm, nr_entries, 0);
 
 		// delete the last entry
-		do_delete_at(nr_entries, nr_entries - 1);
+		do_delete_at(fix->tm, nr_entries, nr_entries - 1);
 
 		// delete a few random entries
 		for (i = 0; i < 5; i++)
-			do_delete_at(nr_entries, rnd(nr_entries));
+			do_delete_at(fix->tm, nr_entries, rnd(nr_entries));
 	}
 }
 
@@ -242,14 +321,23 @@ static void free_keys(uint64_t *keys)
 	free(keys);
 }
 
-static void do_shift(unsigned nr_left, unsigned nr_right, int s)
+static void do_shift(struct dm_transaction_manager *tm,
+                     unsigned nr_left, unsigned nr_right, int s)
 {
 	unsigned nr_entries[2] = {nr_left, nr_right};
+	dm_block_t bs[2];
+	struct dm_block *blks[2];
 	struct btree_node *nodes[2];
 	uint64_t *before_keys, *after_keys;
 	unsigned nr_keys;
 
-	T_ASSERT(create_leaves(sizeof(uint64_t), 2, nr_entries, nodes));
+	T_ASSERT(create_leaves(tm, sizeof(uint64_t), 2, nr_entries, bs));
+
+	T_ASSERT(!dm_tm_read_lock(tm, bs[0], null_validator_(), blks + 0)); 
+	T_ASSERT(!dm_tm_read_lock(tm, bs[1], null_validator_(), blks + 1)); 
+
+	nodes[0] = dm_block_data(blks[0]);
+	nodes[1] = dm_block_data(blks[1]);
 
 	T_ASSERT(collect_keys(2, nodes, &nr_keys, &before_keys));
 	shift(nodes[0], nodes[1], s);
@@ -267,40 +355,54 @@ static void do_shift(unsigned nr_left, unsigned nr_right, int s)
 	node_is_well_formed(nodes[0]);
 	node_is_well_formed(nodes[1]);
 
-	free_nodes(2, nodes);
+	dm_tm_unlock(tm, blks[0]);
+	dm_tm_unlock(tm, blks[1]);
 }
 
 static void test_shift(void *context)
 {
+	struct fixture *fix = context;
 	unsigned max_entries = calc_max_entries(sizeof(uint64_t), BLOCK_SIZE);
 
-	do_shift(32, 43, 12);
-	do_shift(32, 43, -12);
+	do_shift(fix->tm, 32, 43, 12);
+	do_shift(fix->tm, 32, 43, -12);
 
-	do_shift(100, 0, 50);
-	do_shift(0, 100, -50);
+	do_shift(fix->tm, 100, 0, 50);
+	do_shift(fix->tm, 0, 100, -50);
 
-	do_shift(max_entries, 20, 50);
-	do_shift(20, max_entries, -50);
+	do_shift(fix->tm, max_entries, 20, 50);
+	do_shift(fix->tm, 20, max_entries, -50);
 }
 
 //--------------------------------------------------------
 
-static void test_rebalance2_with_merge(void *context)
+static void step_(struct shadow_spine *spine, dm_block_t b,
+                  struct dm_btree_value_type *v)
+{
+	T_ASSERT(!shadow_step(spine, b, v));
+}
+
+static void test_rebalance2_merge(void *context)
 {
 #if 0
+	int r;
+	dm_block_t b;
 	struct shadow_spine spine;
-	struct dm_btree_info info;
-	// We need a transaction manager and an in core space map
+	struct fixture *fix = context;
 
-	int rebalance2(struct shadow_spine *s, struct dm_btree_info *info,
-			      struct dm_btree_value_type *vt, unsigned left_index)
+	init_shadow_spine(&spine, &fix->info);
+	b = create_internal(fix->tm, 70, 0);
+	step_(&spine, b, &fix->info.value_type);
+
+	b = create_leaf(fix,  
+	
+	r = rebalance2(&spine, &fix->info, &fix->info.value_type, 0);
+	T_ASSERT(!r);
 #endif
 }
 
 static void test_rebalance2_shift(void *context)
 {
-
 }
 
 //--------------------------------------------------------
